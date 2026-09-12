@@ -1,25 +1,24 @@
 <script lang="ts">
   import { git } from "$lib/gitClient";
-  import { refresh, runOp, status } from "$lib/store";
+  import { commitAmend, commitMessage, refresh, runOp, status } from "$lib/store";
 
-  let message = $state("");
-  let amend = $state(false);
   let output = $state("");
 
   async function doCommit() {
-    if (!message.trim()) return;
-    const hash = await runOp(() => git.commit(message, amend));
+    const message = $commitMessage.trim();
+    if (!message) return;
+    const hash = await runOp(() => git.commit(message, $commitAmend));
     if (hash) {
       output = `Committed ${(hash as string).slice(0, 7)}`;
-      message = "";
-      amend = false;
+      commitMessage.set("");
+      commitAmend.set(false);
     }
   }
 </script>
 
 <div class="border-b border-[#2d2d2d] p-3">
   <textarea
-    bind:value={message}
+    bind:value={$commitMessage}
     placeholder="Message (Ctrl+Enter to commit)"
     rows="3"
     data-testid="commit-message"
@@ -32,14 +31,14 @@
     <button
       onclick={doCommit}
       data-testid="commit-button"
-      disabled={!message.trim() || ($status && $status.staged.length === 0 && !amend)}
+      disabled={!$commitMessage.trim() || ($status && $status.staged.length === 0 && !$commitAmend)}
       class="bg-[#0e639c] hover:bg-[#1177bb] disabled:opacity-40 disabled:cursor-not-allowed text-white text-[13px] px-4 py-1 rounded"
       title="Commit staged changes"
     >
       ✓ Commit
     </button>
     <label class="text-xs text-[#999] flex items-center gap-1 cursor-pointer">
-      <input type="checkbox" bind:checked={amend} /> Amend
+      <input type="checkbox" bind:checked={$commitAmend} /> Amend
     </label>
     {#if output}
       <span class="text-xs text-green-400">{output}</span>

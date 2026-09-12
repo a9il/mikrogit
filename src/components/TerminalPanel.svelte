@@ -132,6 +132,8 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 12px;
     line-height: 1.45;
+    user-select: text;
+    cursor: text;
   }
   .cmd-line {
     color: #4ec9b0;

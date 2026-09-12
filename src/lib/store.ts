@@ -32,6 +32,8 @@ export const busy = writable(false);
 export const error = writable<string | null>(null);
 export const diffMode = writable<"inline" | "side">("inline");
 export const changesLayout = writable<"list" | "tree">("tree");
+export const commitMessage = writable("");
+export const commitAmend = writable(false);
 export const changesGroupsCollapsed = writable<Set<string>>(new Set());
 
 export function toggleChangesGroup(title: string) {
