@@ -3,15 +3,16 @@
     busy,
     error,
     expandExplorerDir,
+    explorerCollapse,
     explorerCollapsed,
     explorerCreate,
     explorerDelete,
     explorerEntries,
     explorerError,
+    explorerExpand,
     explorerFile,
     explorerLoaded,
     explorerRename,
-    explorerToggle,
     openExplorerFile,
     refreshExplorer,
     reloadExplorerDir,
@@ -99,16 +100,19 @@
     if (!done) await expandExplorerDir(path);
   }
 
+  // Unloaded folders render collapsed — the caret must match what's shown.
+  function isCollapsed(path: string): boolean {
+    return $explorerCollapsed.has(path) || !$explorerLoaded.has(path);
+  }
+
   async function toggleDir(path: string) {
-    let isCollapsed = false;
-    explorerCollapsed.subscribe((s) => (isCollapsed = s.has(path)))();
-    if (!isCollapsed) {
-      explorerToggle(path);
+    if (!isCollapsed(path)) {
+      explorerCollapse(path);
       return;
     }
     try {
       await ensureLoaded(path);
-      explorerToggle(path);
+      explorerExpand(path);
     } catch {
       error.set(`Could not open folder ${path}`);
       return;
@@ -256,7 +260,7 @@
           menuFor = menuFor === f.path ? null : f.path;
         }}
       >
-        <span class="caret">{$explorerCollapsed.has(f.path) ? "▸" : "▾"}</span>
+        <span class="caret">{isCollapsed(f.path) ? "▸" : "▾"}</span>
         {#if renaming === f.path}
           <input
             class="rename-input"
@@ -278,14 +282,14 @@
       </div>
       {#if menuFor === f.path}
         <div class="ctx-menu" style="margin-left: {26 + depth * 14}px">
-          <button onclick={() => { creating = { dir: f.path, kind: "file" }; newName = ""; menuFor = null; }}>＋ New file</button>
-          <button onclick={() => { creating = { dir: f.path, kind: "dir" }; newName = ""; menuFor = null; }}>＋ New folder</button>
+          <button onclick={async () => { await ensureLoaded(f.path); explorerExpand(f.path); creating = { dir: f.path, kind: "file" }; newName = ""; menuFor = null; }}>＋ New file</button>
+          <button onclick={async () => { await ensureLoaded(f.path); explorerExpand(f.path); creating = { dir: f.path, kind: "dir" }; newName = ""; menuFor = null; }}>＋ New folder</button>
           <button onclick={() => startRename(f.path)}>✎ Rename</button>
           <button class="danger" onclick={() => removeEntry(f.path)}>🗑 Delete</button>
           <button onclick={() => reloadExplorerDir(f.path).then(() => { menuFor = null; })}>⟳ Reload</button>
         </div>
       {/if}
-      {#if creating?.dir === f.path && !$explorerCollapsed.has(f.path)}
+      {#if creating?.dir === f.path && !isCollapsed(f.path)}
         <div class="create-row" style="padding-left: {26 + depth * 14}px">
           <span class="text-[#858585]">{creating.kind === "file" ? "◦" : "📁"}</span>
           <input
@@ -310,10 +314,8 @@
           >
         </div>
       {/if}
-      {#if !$explorerCollapsed.has(f.path)}
-        {#if !$explorerLoaded.has(f.path)}
-          <div class="text-xs text-[#6e6e6e] italic" style="padding-left: {26 + depth * 14}px">…</div>
-        {:else if entriesFor(f.path).length === 0}
+      {#if !isCollapsed(f.path)}
+        {#if entriesFor(f.path).length === 0}
           <div class="text-xs text-[#6e6e6e] italic" style="padding-left: {26 + depth * 14}px">empty</div>
         {:else}
           {#each entriesFor(f.path) as child (child.path)}
