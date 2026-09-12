@@ -22,7 +22,7 @@ export WEBKIT_FORCE_SANDBOX=0
 export WEBKIT_DISABLE_COMPOSITING_MODE=1
 export MIKROGIT_REPO="$FIXTURE"
 
-# --- fixture repo: one tracked modified file, one untracked -------------------
+# --- fixture repo: merge conflict + modified file + untracked + subfolder -----
 rm -rf "$FIXTURE"
 mkdir -p "$FIXTURE"
 git -C "$FIXTURE" init -q -b main
@@ -30,7 +30,18 @@ git -C "$FIXTURE" config user.email e2e@test
 git -C "$FIXTURE" config user.name "E2E"
 git -C "$FIXTURE" config core.autocrlf false
 echo "line-one" > "$FIXTURE/README.md"
-git -C "$FIXTURE" add . && git -C "$FIXTURE" commit -qm "initial"
+echo "shared" > "$FIXTURE/file.txt"
+mkdir -p "$FIXTURE/src"
+echo "console.log(1)" > "$FIXTURE/src/app.js"
+git -C "$FIXTURE" add .
+git -C "$FIXTURE" commit -qm "initial"
+git -C "$FIXTURE" checkout -qb feat
+printf "feat change\n" > "$FIXTURE/file.txt"
+git -C "$FIXTURE" commit -qam "feat"
+git -C "$FIXTURE" checkout -q main
+printf "main change\n" > "$FIXTURE/file.txt"
+git -C "$FIXTURE" commit -qam "main"
+git -C "$FIXTURE" merge feat >/dev/null 2>&1 || true # expected conflict
 echo "line-one
 line-two edited" > "$FIXTURE/README.md"
 echo "new untracked file" > "$FIXTURE/notes.txt"

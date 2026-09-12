@@ -287,6 +287,7 @@
               {/if}
               <button
                 class="save-btn"
+                data-testid="explorer-save"
                 disabled={!$explorerDirty}
                 title="Save (Ctrl+S)"
                 onclick={() => saveExplorerFile()}>Save</button
