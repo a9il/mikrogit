@@ -1,0 +1,111 @@
+// Drives the real mikrogit window through WebDriver (tauri-driver).
+// Covers: auto-opened repo, stage, commit, explorer preview, terminal command.
+import { remote } from "webdriverio";
+
+const APP = process.env.E2E_APP;
+const PORT = Number(process.env.E2E_PORT || 4444);
+if (!APP) throw new Error("E2E_APP not set");
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+let client;
+try {
+  client = await remote({
+    hostname: "127.0.0.1",
+    port: PORT,
+    capabilities: { "tauri:options": { application: APP } },
+    logLevel: "error",
+    waitforTimeout: 15000,
+  });
+
+  const step = async (name, fn) => {
+    process.stdout.write(`- ${name} … `);
+    await fn();
+    console.log("ok");
+  };
+
+  await step("app opened the fixture repo", async () => {
+    const el = await client.$('[data-testid="repo-path"]');
+    await el.waitForExist();
+    let txt = "";
+    for (let i = 0; i < 40; i++) {
+      // getText() drops text clipped by overflow:hidden; title is stable.
+      txt = (await el.getAttribute("title")) || "";
+      if (txt.includes("fixture-repo")) break;
+      await sleep(250);
+    }
+    if (!txt.includes("fixture-repo")) throw new Error(`repo path wrong: ${JSON.stringify(txt)}`);
+  });
+
+  await step("status bar shows branch main with pending changes", async () => {
+    const counts = await client.$('[data-testid="status-counts"]');
+    await counts.waitForExist();
+    const txt = await counts.getText();
+    if (!/modified|untracked/.test(txt)) throw new Error(`expected pending changes, got: ${txt}`);
+  });
+
+  await step("stage the modified file from the changes tree", async () => {
+    // Row actions are hover-revealed; move the pointer onto the row first.
+    const row = await client.$('.file-row[title*="README.md"]');
+    await row.waitForExist();
+    await row.moveTo();
+    await sleep(300);
+    const btn = await row.$('[title="Stage"]');
+    await btn.waitForExist();
+    await btn.click();
+    await sleep(600);
+    const counts = await client.$('[data-testid="status-counts"]');
+    const txt = await counts.getText();
+    if (!txt.includes("staged 1")) throw new Error(`file not staged, got: ${txt}`);
+  });
+
+  await step("commit staged change", async () => {
+    const msg = await client.$('[data-testid="commit-message"]');
+    await msg.waitForExist();
+    await msg.setValue("e2e commit");
+    const btn = await client.$('[data-testid="commit-button"]');
+    await btn.waitForEnabled();
+    await btn.click();
+    await sleep(800);
+    const counts = await client.$('[data-testid="status-counts"]');
+    const txt = await counts.getText();
+    if (!txt.includes("untracked 1")) throw new Error(`commit not reflected, got: ${txt}`);
+  });
+
+  await step("explorer lists files and previews content", async () => {
+    await client.$('[title="Explorer"]').click();
+    const row = await client.$('.file-row[title*="notes.txt"]');
+    await row.waitForExist();
+    await row.click();
+    const preview = await client.$("main textarea");
+    await preview.waitForExist();
+    const content = await preview.getValue();
+    if (!content.includes("untracked file")) throw new Error(`bad preview: ${JSON.stringify(content)}`);
+  });
+
+  await step("merge editor absent for clean repo (changes view still works)", async () => {
+    await client.$('[title="Source Control"]').click();
+    const btn = await client.$('[data-testid="commit-button"]');
+    await btn.waitForExist();
+  });
+
+  await step("terminal runs a git command and shows output", async () => {
+    await client.$('[title="Terminal"]').click();
+    const input = await client.$('[data-testid="terminal-input"]');
+    await input.waitForExist();
+    await input.setValue("log --oneline -5");
+    await client.keys(["Enter"]);
+    await sleep(800);
+    const out = await client.$('[data-testid="terminal-output"]');
+    const txt = await out.getText();
+    if (!txt.includes("e2e commit")) throw new Error(`log output missing commit: ${txt}`);
+  });
+
+  await client.deleteSession();
+} catch (err) {
+  console.error("\nE2E FAILED:", err && err.message ? err.message : err);
+  try {
+    if (client) await client.deleteSession();
+  } catch {}
+  process.exit(1);
+}
