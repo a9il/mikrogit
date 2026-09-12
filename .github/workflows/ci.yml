@@ -5,8 +5,36 @@ on:
     branches: [main]
   pull_request:
 
+# CI only runs when the commit message (or PR title) contains [ci] —
+# the gate job decides and every other job waits for it.
 jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          MSG_PUSH: ${{ github.event.head_commit.message }}
+          MSG_PR: ${{ github.event.pull_request.title }}
+        run: |
+          if [ "$EVENT" = "push" ]; then MSG="$MSG_PUSH"; else MSG="$MSG_PR"; fi
+          echo "commit/PR title: $MSG"
+          case "$MSG" in
+            *"[ci]"*|*"[CI]"*)
+              echo "run=true" >> "$GITHUB_OUTPUT"
+              echo "CI requested — running full pipeline"
+              ;;
+            *)
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              echo "CI skipped — include [ci] in the commit message to run"
+              ;;
+          esac
+
   check-frontend:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -20,6 +48,8 @@ jobs:
       - run: pnpm check
 
   check-rust:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -33,7 +63,8 @@ jobs:
         working-directory: src-tauri
 
   build-linux:
-    needs: [check-frontend, check-rust]
+    needs: [gate, check-frontend, check-rust]
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -56,7 +87,8 @@ jobs:
           path: src-tauri/target/release/bundle/
 
   build-windows:
-    needs: [check-frontend, check-rust]
+    needs: [gate, check-frontend, check-rust]
+    if: needs.gate.outputs.run == 'true'
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4

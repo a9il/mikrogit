@@ -65,6 +65,8 @@ sudo apt install -y webkit2gtk-driver      # provides WebKitWebDriver
 
 The E2E uses the `MIKROGIT_REPO` env var to auto-open a fixture repo on launch and `data-testid` hooks in the UI for stable selectors. The Rust integration tests and the fast suite run natively on Windows too — see [docs/windows.md](docs/windows.md) for the complete VM setup.
 
+**CI runs on demand**: GitHub Actions only executes when the commit message (or PR title) contains `[ci]` — e.g. `git commit -m "add feature [ci]"`. Pushes without it skip the pipeline (a tiny gate job records the decision).
+
 ## Build installers
 
 ```bash
